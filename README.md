@@ -29,7 +29,7 @@ objB.Organization_Address = "Your Address, Your City, Your State";
 objB.Contact_Email = "your_email@gmail.com";
 bagit_sharp.Bag.CHECKSUM_ALGOS checksum = bagit_sharp.Bag.CHECKSUM_ALGOS.md5;
 
-string[] objects_to_bag = new string[2] {"D:\folder1\", "D:\folder2\"}
+string[] objects_to_bag = new string[2] {"D:\folder1\", "D:\folder2\"};
 bagit_sharp.Bag mybag = objB.Make_Bag(objects_to_bag, "D:\Bags\new_bag\", null, 1, checksum);
 if (mybag != null) {
    MessageBox.Show("Bag Created");
