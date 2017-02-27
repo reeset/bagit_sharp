@@ -29,8 +29,8 @@ objB.Organization_Address = "Your Address, Your City, Your State";
 objB.Contact_Email = "your_email@gmail.com";
 bagit_sharp.Bag.CHECKSUM_ALGOS checksum = bagit_sharp.Bag.CHECKSUM_ALGOS.md5;
 
-string[] objects_to_bag = new string[2] {"D:\folder1\", "D:\folder2\"};
-bagit_sharp.Bag mybag = objB.Make_Bag(objects_to_bag, "D:\Bags\new_bag\", null, 1, checksum);
+string[] objects_to_bag = new string[2] {@"D:\folder1\", @"D:\folder2\"};
+bagit_sharp.Bag mybag = objB.Make_Bag(objects_to_bag, @"D:\Bags\new_bag\", null, 1, checksum);
 if (mybag != null) {
    MessageBox.Show("Bag Created");
 } else {
@@ -41,13 +41,13 @@ if (mybag != null) {
 If you wish to load a bag to zip or to validate
 
 ```csharp
-bagit_sharp.Bag objB = new bagit_sharp.Bag("D:\Bags\new_bag\");
+bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
 ```
 
 To Validate
 ```csharp
 try {
-  bagit_sharp.Bag objB = new bagit_sharp.Bag("D:\Bags\new_bag\");
+  bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
   objB.Validate_Bag();
 } catch (bagit_sharp.BagException ex)
 {
@@ -58,7 +58,7 @@ MessageBox.Show("Valid!");
 
 To Zip:
 ```csharp
-bagit_sharp.Bag objB = new bagit_sharp.Bag("D:\Bags\new_bag\");
+bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
 if (objB.ZipFile() == false) {
   MessageBox.Show("Zip not successful");
 } else {
