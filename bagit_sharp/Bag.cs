@@ -343,6 +343,11 @@ namespace bagit_sharp
                         case "payload-oxum":
                             Payload_Oxum = (string)headers[key];
                             break;
+                        case "bag-count":
+                        case "bag-size":
+                        case "bagging-date":
+                            //ignore these
+                            break;
                         default:
                             custom_headers.Add(key, (string)headers[key]);
                             break;
@@ -718,6 +723,65 @@ namespace bagit_sharp
         }
         #endregion
 
+        #region "Update Manifest"
+        public Bag Update_Manifest(string _bag_path = null)
+        {
+            if (_bag_path == null)
+            {
+                if (System.IO.Directory.Exists(this.Bag_Path) == false)
+                {
+                    ErrorMessage = "bag path: " + Bag_Path + System.Environment.NewLine + "No Bag has been specified";
+                    EventPump(ErrorMessage);
+                    throw new BagException(ErrorMessage);
+                }
+                else
+                {
+                    _bag_path = this.Bag_Path;
+                }
+            }
+            else
+            {
+                this.Bag_Path = _bag_path;
+                load_bag_info(_bag_path);
+            }
+
+            EventPump("Bag File Path: " + _bag_path);
+            bool bmanifest_valid = validate_manifest_files(_bag_path);
+            if (bmanifest_valid == false)
+            {
+                throw new BagException(ErrorMessage);
+            }
+
+            long[] vals = new long[2];
+            foreach (string f in System.IO.Directory.GetFiles(_bag_path))
+            {
+                if (System.IO.Path.GetFileName(f).StartsWith("manifest") == true)
+                {
+                    CHECKSUM_ALGOS checksum = select_checksum(f);
+                    vals = make_updated_manifest(_bag_path, checksum);
+                }
+            }
+            Payload_Oxum = vals[0].ToString() + "." + vals[1].ToString();
+            Bag_Size = vals[0];
+
+            EventPump("write bag-info file");
+            bool bret = make_bag_info(_bag_path);
+            bret = make_bag_txt(_bag_path);
+
+            foreach (string f in System.IO.Directory.GetFiles(_bag_path))
+            {
+                if (System.IO.Path.GetFileName(f).StartsWith("tagmanifest") == true)
+                {
+                    CHECKSUM_ALGOS checksum = select_checksum(f);
+                    bret = make_tagfile(_bag_path, checksum);
+                }
+            }
+
+            EventPump("finished");
+            return new Bag(_bag_path);
+
+        }
+        #endregion
 
         #region "Validate Bag"
         public bool Validate_Bag(string _bag_path=null, bool bFast = true)
@@ -742,7 +806,11 @@ namespace bagit_sharp
             validate_structure(_bag_path);
             validate_bagittxt(_bag_path);
             validate_tagfiles(_bag_path);
-            validate_manifest_files(_bag_path);
+            bool bmanifest_valid = validate_manifest_files(_bag_path);
+            if (bmanifest_valid == false)
+            {
+                throw new BagException(ErrorMessage);
+            }
             validate_contents(_bag_path, bFast);
             return true;
         }
@@ -815,23 +883,7 @@ namespace bagit_sharp
             CHECKSUM_ALGOS checksum = CHECKSUM_ALGOS.md5;
 
             //need to determine checksum
-            if (tagmanifest.IndexOf("md5") > -1)
-            {
-                checksum = CHECKSUM_ALGOS.md5;
-            } else if (tagmanifest.IndexOf("sha1")>-1)
-            {
-                checksum = CHECKSUM_ALGOS.sha1;
-            } else if (tagmanifest.IndexOf("sha256") > -1)
-            {
-                checksum = CHECKSUM_ALGOS.sha256;
-            } else if (tagmanifest.IndexOf("sha384") > -1)
-            {
-                checksum = CHECKSUM_ALGOS.sh384;
-            }
-            else if (tagmanifest.IndexOf("sha512") > -1)
-            {
-                checksum = CHECKSUM_ALGOS.sha512;
-            }
+            checksum = select_checksum(tagmanifest);
 
             EventPump("CheckSum selected: " + checksum.ToString());
             string sline = "";
@@ -862,7 +914,7 @@ namespace bagit_sharp
             }
             reader.Close();
         }
-        private void validate_manifest_files(string bag_path)
+        private bool validate_manifest_files(string bag_path)
         {
             //this just checks to see if files are duplicate 
             //this would be a problem on windows
@@ -878,7 +930,7 @@ namespace bagit_sharp
                         {
                             string tmp_mline = mline.TrimEnd();
                             if (tmp_mline.IndexOf("\t") > -1) { tmp_mline = tmp_mline.Replace("\t", " ");  }
-                            string data_file = tmp_mline.Substring(tmp_mline.LastIndexOf(" ")).Trim();
+                            string data_file = tmp_mline.Substring(tmp_mline.IndexOf(" ")).Trim();
                             if (file_list.IndexOf(data_file.ToLower()) > -1)
                             {
                                 EventPump("Potential duplicate file located.  File: " + data_file.Trim() + System.Environment.NewLine +
@@ -889,11 +941,21 @@ namespace bagit_sharp
                             {
                                 file_list.Add(data_file.Trim().ToLower());
                             }
-                        }
+                            //We need to make sure that all the files that are suppose to be in the bag, are 
+                            //present -- this needs to be done before any changes to a manifest file 
+                            //can be made.
+                            if (!System.IO.File.Exists(bag_path + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString())))
+                            {
+                                ErrorMessage = "File not found: " + bag_path + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString());
+                                EventPump(ErrorMessage);
+                                return false;
+                            }
+                        }                        
                     }
                     break;
                 }
             }
+            return true;
         }
 
         private void validate_contents(string bag_path, bool bFast)
@@ -966,6 +1028,7 @@ namespace bagit_sharp
             System.IO.StreamWriter writer = new System.IO.StreamWriter(bag_directory + tagmanifest_filename, false, default_encoding);
             foreach (string f in System.IO.Directory.GetFiles(bag_directory))
             {
+                EventPump("Adding to the tagmanifest: " + f);
                 if (f.IndexOf("tagmanifest")==-1)
                 {
                     if (System.IO.Path.GetFileNameWithoutExtension(f).StartsWith("manifest") && 
@@ -974,11 +1037,65 @@ namespace bagit_sharp
                         continue;
                     }
                     string sline = CalcManifest(f, checksum) + "\t" + System.IO.Path.GetFileName(f);
+                    writer.WriteLine(sline);
 
                 }
             }
             writer.Close();
             return true;
+        }
+
+        private long[] make_updated_manifest(string dir, CHECKSUM_ALGOS checksum)
+        {
+            System.Collections.ArrayList manifest_file_list = new ArrayList();
+            try
+            {
+                string manifest_filename = "manifest-" + alg(checksum) + ".txt";
+                string[] manifest_lines = System.IO.File.ReadAllLines(dir + manifest_filename, default_encoding);
+                foreach (string single_line in manifest_lines)
+                {
+                    string tmp_line = single_line.TrimEnd();                    
+                    if (tmp_line.IndexOf("\t") > -1) { tmp_line = tmp_line.Replace("\t", " "); }
+                    string data_file = tmp_line.Substring(tmp_line.IndexOf(" ")).Trim();
+                    if (data_file.Trim().Length>0)
+                    {
+                        manifest_file_list.Add(dir + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString()));                        
+                    }
+                }
+
+                //all files from the manifest have been added -- now we only create a new checksum when 
+                //a file doesn't show up in this list
+                long directorysize = 0;
+                long number_of_files = 0;
+                System.IO.StreamWriter writer = new System.IO.StreamWriter(dir + manifest_filename, true, default_encoding);
+                foreach (string f in System.IO.Directory.GetFiles(dir  + "data", "*.*", System.IO.SearchOption.AllDirectories))
+                {
+                    System.IO.FileInfo finfo = new System.IO.FileInfo(f);
+                    directorysize += finfo.Length;
+                    number_of_files++;
+                    if (manifest_file_list.IndexOf(f) == -1)
+                    {
+                        EventPump("calculating checksum for " + f);
+                        string sline = CalcManifest(f, checksum) + "\t" + f.Substring(f.IndexOf("data")).Replace(System.IO.Path.DirectorySeparatorChar.ToString(), "/");
+                        if (string.IsNullOrEmpty(sline))
+                        {
+                            ErrorMessage = "Unable to locate file: " + f;
+                            EventPump(ErrorMessage);
+                            throw new BagException(ErrorMessage);
+                        }
+                        writer.Write(sline + System.Environment.NewLine);
+                    }
+                }
+                writer.Flush();
+                writer.Close();
+
+                return new long[] { directorysize, number_of_files };
+            }
+            catch {
+                ErrorMessage = "manifest cannot be updated";
+                EventPump(ErrorMessage);
+                throw new BagException(ErrorMessage);
+            }
         }
         private long[] make_manifest(string dir, CHECKSUM_ALGOS checksum, string encoding, bool bappend  = false)
         {
@@ -988,7 +1105,7 @@ namespace bagit_sharp
             long directorysize = 0;
             long number_of_files = 0;
             System.IO.StreamWriter writer = new System.IO.StreamWriter(dir + manifest_filename, bappend, default_encoding);
-            foreach (string f in System.IO.Directory.GetFiles(dir + System.IO.Path.DirectorySeparatorChar.ToString() + "data", "*.*", System.IO.SearchOption.AllDirectories))
+            foreach (string f in System.IO.Directory.GetFiles(dir +  "data", "*.*", System.IO.SearchOption.AllDirectories))
             {
                 System.IO.FileInfo finfo = new System.IO.FileInfo(f);
                 directorysize += finfo.Length;
@@ -1219,6 +1336,48 @@ namespace bagit_sharp
             }
 
             return String.Format("{0:0.##} {1}", dblSByte, Suffix[i]);
+        }
+
+        private CHECKSUM_ALGOS select_checksum(string file)
+        {
+            CHECKSUM_ALGOS checksum = CHECKSUM_ALGOS.md5;
+
+            //need to determine checksum
+            if (file.IndexOf("md5") > -1)
+            {
+                checksum = CHECKSUM_ALGOS.md5;
+            }
+            else if (file.IndexOf("sha1") > -1)
+            {
+                checksum = CHECKSUM_ALGOS.sha1;
+            }
+            else if (file.IndexOf("sha256") > -1)
+            {
+                checksum = CHECKSUM_ALGOS.sha256;
+            }
+            else if (file.IndexOf("sha384") > -1)
+            {
+                checksum = CHECKSUM_ALGOS.sh384;
+            }
+            else if (file.IndexOf("sha512") > -1)
+            {
+                checksum = CHECKSUM_ALGOS.sha512;
+            }
+
+            EventPump("CheckSum selected: " + checksum.ToString());
+            return checksum;
+        }
+        private string Regenerate_Payload_Oxum(string bag_path)
+        {
+            long fcount = 0;
+            long fsize = 0;
+            foreach (string f in System.IO.Directory.GetFiles(bag_path + "data", "*.*", System.IO.SearchOption.AllDirectories))
+            {
+                fcount++;
+                fsize += new System.IO.FileInfo(f).Length;
+
+            }
+            return fsize.ToString() + "." + fcount.ToString();
         }
 
         private void ThreadPoolCallback(Object threadContext)
