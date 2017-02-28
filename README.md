@@ -49,11 +49,11 @@ To Validate
 try {
   bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
   objB.Validate_Bag();
+  MessageBox.Show("Valid!");
 } catch (bagit_sharp.BagException ex)
 {
   MessageBox.Show(ex.Message);
 }
-MessageBox.Show("Valid!");
 ```
 
 To Zip:
