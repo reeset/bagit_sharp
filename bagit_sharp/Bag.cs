@@ -742,6 +742,7 @@ namespace bagit_sharp
             validate_structure(_bag_path);
             validate_bagittxt(_bag_path);
             validate_tagfiles(_bag_path);
+            validate_manifest_files(_bag_path);
             validate_contents(_bag_path, bFast);
             return true;
         }
@@ -817,21 +818,22 @@ namespace bagit_sharp
             if (tagmanifest.IndexOf("md5") > -1)
             {
                 checksum = CHECKSUM_ALGOS.md5;
-            } else if (tagmanifest.IndexOf("sh1")>-1)
+            } else if (tagmanifest.IndexOf("sha1")>-1)
             {
                 checksum = CHECKSUM_ALGOS.sha1;
-            } else if (tagmanifest.IndexOf("sh256") > -1)
+            } else if (tagmanifest.IndexOf("sha256") > -1)
             {
                 checksum = CHECKSUM_ALGOS.sha256;
-            } else if (tagmanifest.IndexOf("sh384") > -1)
+            } else if (tagmanifest.IndexOf("sha384") > -1)
             {
                 checksum = CHECKSUM_ALGOS.sh384;
             }
-            else if (tagmanifest.IndexOf("sh512") > -1)
+            else if (tagmanifest.IndexOf("sha512") > -1)
             {
                 checksum = CHECKSUM_ALGOS.sha512;
             }
 
+            EventPump("CheckSum selected: " + checksum.ToString());
             string sline = "";
             string parent_directory = System.IO.Path.GetDirectoryName(tagmanifest);
             System.IO.StreamReader reader = new System.IO.StreamReader(tagmanifest, default_encoding, false);
@@ -850,6 +852,7 @@ namespace bagit_sharp
                         {
                             ErrorMessage = "tagmanifest checksum doesn't match for: " + parts[1] + System.Environment.NewLine + 
                                 "checksum: " + parts[0] + System.Environment.NewLine +
+                                "using checksum: " + checksum.ToString() + System.Environment.NewLine + 
                                 CalcManifest(System.IO.Path.Combine(parent_directory, parts[1]), checksum);
                             EventPump(ErrorMessage);
                             throw new BagException(ErrorMessage);
@@ -859,8 +862,42 @@ namespace bagit_sharp
             }
             reader.Close();
         }
-        private void validate_contents(string bag_path, bool bFast)
+        private void validate_manifest_files(string bag_path)
         {
+            //this just checks to see if files are duplicate 
+            //this would be a problem on windows
+            System.Collections.ArrayList file_list = new System.Collections.ArrayList();
+            foreach (string f in System.IO.Directory.GetFiles(bag_path))
+            {
+                if (System.IO.Path.GetFileName(f).StartsWith("manifest") == true)
+                {
+                    string[] manifest_lines = System.IO.File.ReadAllLines(f, default_encoding);
+                    foreach (string mline in manifest_lines)
+                    {
+                        if (mline.Trim().Length > 0)
+                        {
+                            string tmp_mline = mline.TrimEnd();
+                            if (tmp_mline.IndexOf("\t") > -1) { tmp_mline = tmp_mline.Replace("\t", " ");  }
+                            string data_file = tmp_mline.Substring(tmp_mline.LastIndexOf(" ")).Trim();
+                            if (file_list.IndexOf(data_file.ToLower()) > -1)
+                            {
+                                EventPump("Potential duplicate file located.  File: " + data_file.Trim() + System.Environment.NewLine +
+                                    "On Windows, file names/paths are treated as case insensitive potentially " +
+                                    "leading to data loss if not changed.");
+                            }
+                            else
+                            {
+                                file_list.Add(data_file.Trim().ToLower());
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        private void validate_contents(string bag_path, bool bFast)
+        {            
             //fast just checks the oxam
             //false looks at the whole file
             if (bFast == true)
@@ -880,6 +917,7 @@ namespace bagit_sharp
                     {
                         fcount++;
                         fsize += new System.IO.FileInfo(f).Length;
+                        
                     }
 
                     string[] parts = Payload_Oxum.Split(".".ToCharArray());
@@ -957,6 +995,12 @@ namespace bagit_sharp
                 number_of_files++;
                 EventPump("calculating checksum for " + f);
                 string sline = CalcManifest(f, checksum) + "\t" + f.Substring(f.IndexOf("data")).Replace(System.IO.Path.DirectorySeparatorChar.ToString(), "/");
+                if (string.IsNullOrEmpty(sline))
+                {
+                    ErrorMessage = "Unable to locate file: " + f;
+                    EventPump(ErrorMessage);
+                    throw new BagException(ErrorMessage);
+                }
                 writer.Write(sline + System.Environment.NewLine);
             }
             writer.Flush();
@@ -985,6 +1029,13 @@ namespace bagit_sharp
 
         private string CalcManifest(string file, CHECKSUM_ALGOS checksum)
         {
+
+            if (System.IO.File.Exists(file)==false)
+            {
+                if (file.IndexOf("*")>-1) { file = file.Replace("*", ""); }
+                if (System.IO.File.Exists(file)==false) { return null; }
+            }
+
             switch (checksum)
             {
                 case CHECKSUM_ALGOS.md5:
@@ -1145,13 +1196,13 @@ namespace bagit_sharp
                 case CHECKSUM_ALGOS.md5:
                     return "md5";                    
                 case CHECKSUM_ALGOS.sha1:
-                    return "sh1";                    
+                    return "sha1";                    
                 case CHECKSUM_ALGOS.sha256:
-                    return "sh256";
+                    return "sha256";
                 case CHECKSUM_ALGOS.sh384:                    
-                    return "sh384";           
+                    return "sha384";           
                 case CHECKSUM_ALGOS.sha512:
-                    return "sh512";                    
+                    return "sh5a12";                    
                 default:
                     return "md5";                    
             }
