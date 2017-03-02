@@ -47,6 +47,7 @@ bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
 To Validate
 ```csharp
 bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
+
 try {
   objB.Validate_Bag();
   MessageBox.Show("Valid!");
@@ -84,6 +85,7 @@ When zipping a file, the zip file is created at the same level as the top bag fo
 ## Supported Checksums
 
 The bagit_sharp library supports the following common checksums
+
 1. MD5
 2. SH1
 3. SH256
