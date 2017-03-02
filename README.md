@@ -24,9 +24,9 @@ bagit_sharp.Bag objB = new bagit_sharp.Bag();
 //from the library
 objB.UpdateStatus += ObjB_UpdateStatus;
 
-objB.Contact_Name = "Your Contact Name";
-objB.Organization_Address = "Your Address, Your City, Your State";
-objB.Contact_Email = "your_email@gmail.com";
+objB.add_to_header("Contact-Name", "Your Contact Name");
+objB.add_to_header("Organization-Address", "Your Address);
+objB.add_to_header("Contact-Email", "your_email");
 bagit_sharp.Bag.CHECKSUM_ALGOS checksum = bagit_sharp.Bag.CHECKSUM_ALGOS.md5;
 
 string[] objects_to_bag = new string[2] {@"D:\folder1\", @"D:\folder2\"};
@@ -46,13 +46,25 @@ bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
 
 To Validate
 ```csharp
+bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
 try {
-  bagit_sharp.Bag objB = new bagit_sharp.Bag(@"D:\Bags\new_bag\");
   objB.Validate_Bag();
   MessageBox.Show("Valid!");
 } catch (bagit_sharp.BagException ex)
 {
-  MessageBox.Show(ex.Message);
+  if (String.IsNullOrEmpty(objB.Payload_Oxum()))
+  {
+      try {
+         //don't try to fast validate because
+         //no oxum was present
+         objB.Validate_Bag(null, false);
+         MessageBox.Show("Valid!");
+      } catch (bagit_sharp.BagException bex) {
+         MessageBox.Show(bex.Message);
+      }
+  } else {
+      MessageBox.Show(ex.Message);
+  }
 }
 ```
 
@@ -79,7 +91,21 @@ The bagit_sharp library supports the following common checksums
 5. SH512
 
 ## Update a bag manifest: 
-ToDo
+```csharp
+//Assuming new files have been added to the data
+//directory, or you have used a function to 
+//modify the bag_info
+try {
+   bagit_sharp.Bag objBag = new bagit_sharp.Bag("D:\mybag");
+   if (objBag.Update_Manifest() == null) {
+      MessageBox.Show("Unable to update your bag");
+   } else {
+      MessageBox.Show("Bag has been updated.");
+   }
+} catch {
+    MessageBox.Show("An Unhandled Error occurred during the process");
+}
+```
 
 ## Contributing to the bagit_sharp development
 
