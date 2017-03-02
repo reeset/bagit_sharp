@@ -10,23 +10,9 @@ namespace bagit_sharp
     public class Bag
     {
         //setting up private values
-        private string pSource_Organization = "";
-        private string pOrganization_Address = "";
-        private string pContact_Name = "";
-        private string pContact_Phone = "";
-        private string pContact_Email = "";
-        private string pExternal_Description = "";
-        private string pExternal_Identifier = "";
-        private string pBag_Size = "";
-        private string pBag_Group_Identifier = "";
-        private string pBag_Count = "";
-        private string pBag_Software_Agent = "";
-        private string pInternal_Sender_Identifier = "";
-        private string pInternal_Sender_Description = "";
-        private string pBagit_Profile_Identifier = "";
+
         private DateTime pBagging_Date = DateTime.Now;
-        private string pPayload_Oxum = "";
-        private System.Collections.Hashtable custom_headers = new System.Collections.Hashtable();
+        private System.Collections.Hashtable pBag_Info_Headers = new System.Collections.Hashtable();
         private string pBag_Path = "";
 
         //specified encoding must be UTF8, no BOM
@@ -35,161 +21,66 @@ namespace bagit_sharp
         private string pTag_File_Character_Encoding = "UTF-8";
         private string pErrorMessage = "";
 
+        //internal types
+        internal struct Info_Object
+        {
+            internal string object_label;
+            internal string object_value;
+
+            internal Info_Object(string plabel = "", string pvalue = "")
+            {
+                object_label = plabel;
+                object_value = pvalue;
+            }
+        }
+
+        //Private Hash
+        //this may need to be a variable and not a property
+        private System.Collections.Hashtable Bag_Info_Headers
+        {
+            get { return pBag_Info_Headers; }
+            set { pBag_Info_Headers = value; }
+        }
+        private System.Collections.ArrayList baginfo_order = new System.Collections.ArrayList();
+
         //Delegates
         public delegate void StatusMessage(object sender, string message);
-
 
         //enums
         public enum CHECKSUM_ALGOS { md5 = 0, sha1, sha256, sh384, sha512 };
         public enum ZIP_TYPES { zip = 0 };
 
+
         //Public Properties
-        public string Source_Organization
-        {
-            get { return pSource_Organization; }
-            set { pSource_Organization = value; }
-        }
-
-        public string Organization_Address
-        {
-            get { return pOrganization_Address; }
-            set { pOrganization_Address = value; }
-        }
-
-        public string Contact_Name
-        {
-            get { return pContact_Name; }
-            set { pContact_Name = value; }
-        }
-
-        public string Contact_Email
-        {
-            get { return pContact_Email; }
-            set { pContact_Email = value; }
-        }
-
-        public string Contact_Phone
-        {
-            get { return pContact_Phone; }
-            set { pContact_Phone = value; }
-        }
-
-        public string External_Description
-        {
-            get { return pExternal_Description; }
-            set { pExternal_Description = value; }
-        }
-
-        public string External_Identifier
-        {
-            get { return pExternal_Identifier; }
-            set { pExternal_Identifier = value; }
-        }
-
-        public long Bag_Size
-        {
-            get
-            {
-                try
-                {
-                    return (long)System.Convert.ToDouble(pBag_Size);
-                }
-                catch
-                {
-                    return -1;
-                }
-            }
-            private set { pBag_Size = value.ToString(); }
-        }
 
         /// <summary>
-        /// Returns the internal value for bag size.  Use only 
-        /// for debugging if the Bag_Size returns -1
+        /// Bag_Version returns the version number of 
+        /// the current loaded bag.  If multiple Bag_Version statements 
+        /// exist in the info file, the tool will return the first one.
         /// </summary>
-        public string Bag_Size_Raw_Value
-        {
-            get { return pBag_Size; }
-        }
-
-        public string Bag_Group_Identifier
-        {
-            get { return pBag_Group_Identifier; }
-            set { pBag_Group_Identifier = value; }
-        }
-
-        public int Bag_Count
-        {
-            get
-            {
-                try
-                {
-                    return System.Convert.ToInt32(pBag_Count);
-                } catch {
-                    return -1;
-                }
-            }
-            private set { pBag_Count = value.ToString(); }
-        }
-
-        /// <summary>
-        /// Returns Bag_Count Raw data.  Only use if Bag_Count returns
-        /// -1
-        /// </summary>
-        public string Bag_Count_Raw_Value
-        {
-            get { return pBag_Count; }
-        }
-
-        public string Bag_Software_Agent
-        {
-            get { return pBag_Software_Agent; }
-            set { pBag_Software_Agent = value; }
-        }
-
-
-        public string Internal_Sender_Identifier
-        {
-            get { return pInternal_Sender_Identifier; }
-            set { pInternal_Sender_Identifier = value; }
-        }
-
-        public string Internal_Sender_Description
-        {
-            get { return pInternal_Sender_Description; }
-            set { pInternal_Sender_Description = value; }
-        }
-
-        //autogenerated; return only
-        public DateTime Bagging_Date
-        {
-            get { return pBagging_Date; }
-            private set { pBagging_Date = value; }
-        }
-
-        //Autogenerated; return only
-        public string Payload_Oxum
-        {
-            get { return pPayload_Oxum; }
-            private set { pPayload_Oxum = value; }
-        }
-
         public string Bag_Version
         {
             get { return pBag_Version; }
             set { pBag_Version = value; }
         }
 
+        /// <summary>
+        /// Returns the File Character Encoding defined in the tagmanifest for the 
+        /// current loaded bag.
+        /// </summary>
         public string Tag_File_Character_Encoding
         {
             get { return pTag_File_Character_Encoding; }
-            set {
+            set
+            {
                 pTag_File_Character_Encoding = value;
                 //this should also set default_encoding
                 try
                 {
                     System.Text.Encoding tenc = System.Text.Encoding.GetEncoding(value.ToLower());
                     default_encoding = tenc;
-                } catch
+                }
+                catch
                 {
                     //keep default encoding as utf8
                 }
@@ -219,7 +110,8 @@ namespace bagit_sharp
                     Bag_Path += System.IO.Path.DirectorySeparatorChar.ToString();
                 }
                 load_bag_info(Bag_Path);
-            } else if (_inst_path != null && !System.IO.Directory.Exists(_inst_path))
+            }
+            else if (_inst_path != null && !System.IO.Directory.Exists(_inst_path))
             {
                 ErrorMessage = "specified bag path not located";
                 EventPump(ErrorMessage);
@@ -227,61 +119,170 @@ namespace bagit_sharp
             }
         }
 
-        private void load_bag_info(string s)
+        /// <summary>
+        /// Returns the Bagging Date for the currently loaded Bag.  If multiple dates are present in the 
+        /// info file, the library returns the first.  If you need access to all dates, use the 
+        /// get_bag_info("your_tag") function
+        /// </summary>
+        /// <param name="val"></param>
+        /// <returns></returns>
+        public DateTime? Bagging_Date(DateTime? val = null)
         {
-            //need to implement
-            //just load the bag info into the object
-            if (System.IO.File.Exists(s + "bag-info.txt") == false)
+            if (val == null)
             {
-                ErrorMessage = "bag-info.txt not located.";
-                EventPump(ErrorMessage);
-                throw new BagException(ErrorMessage);
+                //get operation
+                System.Collections.ArrayList tlist = get_bag_info("bagging-date");
+                if (tlist != null)
+                {
+                    return DateTime.Parse(((Info_Object)tlist[0]).object_value);
+                }
+                else
+                {
+                    return null;
+                }
             }
-
-            if (System.IO.File.Exists(s + "bagit.txt") == false)
+            else
             {
-                ErrorMessage = "bagit.txt not located";
-                EventPump(ErrorMessage);
-                throw new BagException(ErrorMessage);
+
+                DateTime t = (System.DateTime)val;
+                set_bag_info("bagging-date", t.ToString("yyyy-MM-dd"), 0);
+                return t;
             }
-
-            //first, let's load the bagit.txt file to find encoding
-            //always utf8
-            System.Collections.Hashtable taghash = read_tagged_file(s + "bagit.txt", new System.Text.UTF8Encoding(false));
-            if (taghash.ContainsKey("bagit-version"))
-            {
-                Bag_Version = (string)taghash["bagit-version"];
-            } else if (taghash.ContainsKey("tag-file-character-encoding"))
-            {
-                Tag_File_Character_Encoding = (string)taghash["tag-file-character-encoding"];
-            }
-
-            System.Collections.Hashtable headers = read_tagged_file(s + "bag-info.txt", default_encoding);
-            SetBagProperties(headers);
         }
 
-        private Hashtable read_tagged_file(string v, System.Text.Encoding enc)
+        //Autogenerated; return only
+        /// <summary>
+        /// Returns the Payload_Oxum for the currently loaded Bag.  If multiple oxum elements are present
+        /// in the bag info, the library returns the first.  If you need access to all oxum elements, use 
+        /// the get_bag_info("your_tag") function
+        /// </summary>
+        /// <param name="val"></param>
+        /// <returns></returns>
+        public string Payload_Oxum(string val = null)
         {
+            EventPump("Payload_Oxum in property: " + val);
+            if (val == null)
+            {
+                //get operation
+
+                System.Collections.ArrayList tlist = get_bag_info("payload-oxum");
+                if (tlist != null)
+                {
+                    return ((Info_Object)tlist[0]).object_value;
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            else
+            {
+
+                set_bag_info("payload-oxum", val, 0);
+                return val;
+            }
+        }
+
+        //Automatically generated; return only
+        /// <summary>
+        /// Returns the Bag-Size for the currently loaded bag.  If multiple bag-size elements are 
+        /// in the info file, the tool will return the first element.  If you need access to all 
+        /// the bag-size values, use the get_bag_info("your_value") function
+        /// </summary>
+        /// <param name="val"></param>
+        /// <returns></returns>
+        public string Bag_Size(string val = null)
+        {
+            if (val == null)
+            {
+                //get operation
+                System.Collections.ArrayList tlist = get_bag_info("bag-size");
+                if (tlist != null)
+                {
+                    try
+                    {
+                        return ((Info_Object)tlist[0]).object_value;
+                    }
+                    catch
+                    {
+                        return "";
+                    }
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            else
+            {
+                set_bag_info("bag-size", val, 0);
+                return val;
+            }
+        }
+        
+
+        private Hashtable read_tagged_file(string v, System.Text.Encoding enc, bool bpreserve_order = false)
+        {
+            if (bpreserve_order == true)
+            {
+                baginfo_order.Clear();
+            }
             string sline = "";
             System.Collections.Hashtable lhash = new Hashtable();
+            System.Collections.ArrayList tlist = new System.Collections.ArrayList();
             System.IO.StreamReader reader = new System.IO.StreamReader(v, enc, false);
+            bool bstoploop = false;
             while (reader.Peek() > -1)
             {
+                bstoploop = false;
                 sline = reader.ReadLine();
+                do
+                {
+                    int ipeak = reader.Peek();
+                    if (ipeak > -1 && (ipeak == 32 || ipeak == 9))
+                    {
+                        sline += " " + reader.ReadLine().Trim();
+                        EventPump("Line: " + sline + ": " + ipeak.ToString());
+                        //new line continued
+                    } else
+                    {
+                        bstoploop = true;
+                    }
+                } while (bstoploop == false);
                 if (sline.Trim().Length > 0)
                 {
                     string[] parts = sline.Split(":".ToCharArray());
                     if (parts.Length == 2)
                     {
-                        lhash.Add(parts[0].ToLower(), parts[1].Trim());
+                        if (bpreserve_order == true)
+                        {
+                            baginfo_order.Add(parts[0]);
+                        }
+                        if (!lhash.ContainsKey(parts[0].ToLower()))
+                        {
+                            Info_Object obj_p = new Info_Object();
+                            obj_p.object_label = parts[0];
+                            obj_p.object_value = parts[1].Trim();
+                            tlist = new System.Collections.ArrayList();
+                            tlist.Add(obj_p);
+                            lhash.Add(parts[0].ToLower(), tlist);
+                        }
+                        else
+                        {
+                            Info_Object obj_p = new Info_Object();
+                            obj_p.object_label = parts[0];
+                            obj_p.object_value = parts[1].Trim();
+                            tlist = (System.Collections.ArrayList)lhash[parts[0].ToLower()];
+                            tlist.Add(obj_p);
+                            lhash[parts[0].ToLower()] = tlist;
+
+                        }
                     }
                 }
             }
             reader.Close();
             return lhash;
         }
-
-
         #region "Property Bag"
         /// <summary>
         /// Private function to set bag properties.
@@ -305,101 +306,238 @@ namespace bagit_sharp
             {
                 foreach (string key in headers.Keys)
                 {
-                    switch (key.ToLower())
+                    if (!Bag_Info_Headers.ContainsKey(key.ToLower()))
                     {
-                        case "source-organization":
-                            Source_Organization = (string)headers[key];
-                            break;
-                        case "organization-address":
-                            Organization_Address = (string)headers[key];
-                            break;
-                        case "contact-name":
-                            Contact_Name = (string)headers[key];
-                            break;
-                        case "contact-email":
-                            Contact_Email = (string)headers[key];
-                            break;
-                        case "contact-phone":
-                            Contact_Phone = (string)headers[key];
-                            break;
-                        case "external-description":
-                            External_Description = (string)headers[key];
-                            break;
-                        case "external-identifier":
-                            External_Identifier = (string)headers[key];
-                            break;
-                        case "bag-group-identifier":
-                            Bag_Group_Identifier = (string)headers[key];
-                            break;
-                        case "internal-sender-identifier":
-                            Internal_Sender_Identifier = (string)headers[key];
-                            break;
-                        case "internal-sender-description":
-                            Internal_Sender_Description = (string)headers[key];
-                            break;
-                        case "bagit-profile-identifier":
-                            pBagit_Profile_Identifier = (string)headers[key];
-                            break;
-                        case "payload-oxum":
-                            Payload_Oxum = (string)headers[key];
-                            break;
-                        case "bag-count":
-                        case "bag-size":
-                        case "bagging-date":
-                            //ignore these
-                            break;
-                        default:
-                            custom_headers.Add(key, (string)headers[key]);
-                            break;
+                        Bag_Info_Headers.Add(key.ToLower(), null);
                     }
+                    Bag_Info_Headers[key.ToLower()] = (System.Collections.ArrayList)headers[key];
                 }
             }
         }
 
-        private System.Collections.Hashtable GetBagProperties()
+        private void RefreshBagProperties()
         {
-            System.Collections.Hashtable bhash = new System.Collections.Hashtable();
-            bhash.Add("Source-Organization", Source_Organization);
-            bhash.Add("Organization-Address", Organization_Address);
-            bhash.Add("Contact-Name", Contact_Name);
-            bhash.Add("Contact-Phone", Contact_Phone);
-            bhash.Add("Contact-Email", Contact_Email);
-            bhash.Add("External-Description", External_Description);
-            bhash.Add("External-Identifier", External_Identifier);
-            bhash.Add("Bagging-Date", DateTime.Now.ToString("yyyy-MM-dd"));
-            bhash.Add("Bag-Size", FormatBytes(Bag_Size));
-            bhash.Add("Payload-Oxum", Payload_Oxum);
-            bhash.Add("Bag-Group-Identifier", Bag_Group_Identifier);
-            bhash.Add("Bag-Count", Bag_Count.ToString());
-            bhash.Add("Internal-Sender-Identifier", Internal_Sender_Identifier);
-            bhash.Add("Internal-Sender-Description", Internal_Sender_Description);
-
-
-            if (custom_headers != null && custom_headers.Count > 0)
+            //System.Collections.Hashtable bhash = new System.Collections.Hashtable();
+            if (Bag_Info_Headers.ContainsKey("bagging-date"))
             {
-                foreach (string key in custom_headers.Keys)
-                {
-                    bhash.Add(key, (string)custom_headers[key]);
-                }
+                set_bag_info("bagging-date", DateTime.Now.ToString("yyyy-MM-dd"), 0);
             }
 
-            return bhash;
+            if (Bag_Info_Headers.ContainsKey("bag-size"))
+            {
+                EventPump("Processing Bag-size in refresh");
+                set_bag_info("bag-size", FormatBytes((long)System.Convert.ToDouble(Bag_Size())), 0);
+                EventPump("Bag-size processed in refresh");
+            }
+        }
+
+
+        /// <summary>
+        /// Sets data in the bag info.  If index is present, the function will replace the 
+        /// value at the specified index.
+        /// </summary>
+        /// <param name="tag"></param>
+        /// <param name="svalue"></param>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        public bool set_bag_info(string tag, string svalue, int index = 0)
+        {
+            if (!Bag_Info_Headers.ContainsKey(tag.ToLower()))
+            {
+                if (index == 0)
+                {
+                    add_to_header(tag, svalue);
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            if ((((System.Collections.ArrayList)Bag_Info_Headers[tag.ToLower()]).Count - 1) < index)
+            {
+                return false;
+            }
+            else
+            {
+                System.Collections.ArrayList tlist = ((System.Collections.ArrayList)Bag_Info_Headers[tag.ToLower()]);
+                tlist[index] = new Info_Object(tag, svalue);
+                Bag_Info_Headers[tag.ToLower()] = tlist;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Sets bag info using an array.
+        /// </summary>
+        /// <param name="tag"></param>
+        /// <param name="values"></param>
+        public void set_bag_info(string tag, System.Collections.ArrayList values)
+        {
+            System.Collections.ArrayList tlist = new System.Collections.ArrayList();
+            foreach (string v in values)
+            {
+                if (!Bag_Info_Headers.ContainsKey(tag.ToLower()))
+                {
+                    Bag_Info_Headers.Add(tag.ToLower(), null);
+                }
+                Info_Object pinfo = new Info_Object();
+                pinfo.object_label = tag;
+                pinfo.object_value = v;
+                tlist.Add(pinfo);
+            }
+            Bag_Info_Headers[tag.ToLower()] = tlist;
+        }
+
+        /// <summary>
+        /// Adds a new element to the bag info
+        /// </summary>
+        /// <param name="tag"></param>
+        /// <param name="svalue"></param>
+        public void add_to_header(string tag, string svalue)
+        {
+            System.Collections.ArrayList tlist = new System.Collections.ArrayList();
+            if (!Bag_Info_Headers.ContainsKey(tag.ToLower()))
+            {
+                Bag_Info_Headers.Add(tag.ToLower(), null);
+            }
+            else
+            {
+                tlist = (System.Collections.ArrayList)Bag_Info_Headers[tag.ToLower()];
+            }
+
+            tlist.Add(new Info_Object(tag, svalue));
+            Bag_Info_Headers[tag.ToLower()] = tlist;
+        }
+
+        /// <summary>
+        /// remove all elements for a tag in the bag_info
+        /// </summary>
+        /// <param name="tag"></param>
+        public void remove_bag_info(string tag)
+        {
+            if (Bag_Info_Headers.ContainsKey(tag.ToLower()))
+            {
+                Bag_Info_Headers.Remove(tag.ToLower());
+            }
+        }
+
+        /// <summary>
+        /// remove a specific element from the bag info at the specified index
+        /// </summary>
+        /// <param name="tag"></param>
+        /// <param name="index"></param>
+        /// <returns></returns>
+        public bool remove_from_header(string tag, int index)
+        {
+            if (Bag_Info_Headers.ContainsKey(tag.ToLower()))
+            {
+                System.Collections.ArrayList tlist = new System.Collections.ArrayList();
+                tlist = (System.Collections.ArrayList)Bag_Info_Headers[tag.ToLower()];
+                if ((tlist.Count - 1) < index)
+                {
+                    return false;
+                }
+                else
+                {
+                    tlist.RemoveAt(index);
+                    Bag_Info_Headers[tag.ToLower()] = tlist;
+                    return true;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Get a list of all elements with a specific tag
+        /// </summary>
+        /// <param name="tag"></param>
+        /// <returns></returns>
+        public System.Collections.ArrayList get_bag_info(string tag)
+        {
+
+
+            if (Bag_Info_Headers.ContainsKey(tag.ToLower()))
+            {
+                System.Collections.ArrayList xlist = new System.Collections.ArrayList();
+                System.Collections.ArrayList plist = (System.Collections.ArrayList)Bag_Info_Headers[tag.ToLower()];
+                foreach (Info_Object pinfo in plist)
+                {
+                    xlist.Add(pinfo);
+                }
+                return xlist;
+            }
+            else
+            {
+                return null;
+            }
+
+
+        }
+
+        /// <summary>
+        /// Load the specififed bag and do light validation on load.
+        /// </summary>
+        /// <param name="s"></param>
+        private void load_bag_info(string s)
+        {
+            //first, let's load the bagit.txt file to find encoding
+            //always utf8
+            System.Collections.Hashtable taghash = read_tagged_file(s + "bagit.txt", new System.Text.UTF8Encoding(false));
+            if (taghash.ContainsKey("bagit-version"))
+            {
+                Bag_Version = ((Info_Object)((System.Collections.ArrayList)taghash["bagit-version"])[0]).object_value;
+                //Bag_Version = (string)taghash["bagit-version"];
+            }
+            else if (taghash.ContainsKey("tag-file-character-encoding"))
+            {
+                //Tag_File_Character_Encoding = (string)taghash["tag-file-character-encoding"];
+                Tag_File_Character_Encoding = ((Info_Object)((System.Collections.ArrayList)taghash["tag-file-character-encoding"])[0]).object_value;
+            }
+
+            if (Bag_Version == "0.96" ||
+                Bag_Version == "0.97")
+            {
+                //need to implement
+                //just load the bag info into the object
+                if (System.IO.File.Exists(s + "bag-info.txt") == false)
+                {
+                    ErrorMessage = "bag-info.txt not located.";
+                    EventPump(ErrorMessage);                    
+                } else
+                {
+                    System.Collections.Hashtable headers = read_tagged_file(s + "bag-info.txt", default_encoding, true);
+                    SetBagProperties(headers);
+                }
+            } else
+            {
+                if (System.IO.File.Exists(s + "package-info.txt")== false)
+                {
+                    ErrorMessage = "package-info.txt not located.";
+                    EventPump(ErrorMessage);
+                } else
+                {
+                    System.Collections.Hashtable headers = read_tagged_file(s + "package-info.txt", default_encoding, true);
+                    SetBagProperties(headers);
+                }
+
+            }
+
+            if (System.IO.File.Exists(s + "bagit.txt") == false)
+            {
+                ErrorMessage = "bagit.txt not located";
+                EventPump(ErrorMessage);
+                throw new BagException(ErrorMessage);
+            }
         }
 
         #endregion
 
-        internal void EventPump(string message)
-        {
-            System.Diagnostics.Debug.WriteLine(message);
-            try
-            {
-                UpdateStatus(new Bag(), message);
-            }
-            catch { }
-        }
-
         #region "Zip Bag/Unzip Bag"
-        public bool ZipFile(string dir = "", string sdest ="", bool bGenerateChecksum = true)
+        public bool ZipFile(string dir = "", string sdest = "", bool bGenerateChecksum = true)
         {
             string zip_file_name = "";
             if (dir.Trim().Length == 0)
@@ -412,14 +550,15 @@ namespace bagit_sharp
                 //you have to remove the directory separator to get the 
                 //parent directory for some reason
                 sdest = System.IO.Directory.GetParent(dir.TrimEnd(new char[] { System.IO.Path.DirectorySeparatorChar })).FullName;
-                
-                if (sdest.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString())==false) {
+
+                if (sdest.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) == false)
+                {
                     sdest += System.IO.Path.DirectorySeparatorChar.ToString();
                 }
             }
 
             zip_file_name = sdest + new System.IO.DirectoryInfo(dir).Name + ".zip";
-            
+
             try
             {
                 ICSharpCode.SharpZipLib.Zip.FastZip fast = new ICSharpCode.SharpZipLib.Zip.FastZip();
@@ -434,11 +573,12 @@ namespace bagit_sharp
                 }
                 return true;
             }
-            catch (System.Exception ex)  {
+            catch (System.Exception ex)
+            {
                 ErrorMessage = ex.ToString();
                 EventPump(ErrorMessage);
                 return false;
-            }            
+            }
         }
         #endregion
 
@@ -453,23 +593,24 @@ namespace bagit_sharp
         /// <returns></returns>
         public Bag Make_Bag(string[] objects_to_bag,
             string bag_directory,
-            System.Collections.Hashtable headers = null, 
+            System.Collections.Hashtable headers = null,
             int processes = -1,
             CHECKSUM_ALGOS checksum = CHECKSUM_ALGOS.md5)
         {
 
-            if (headers!=null && headers.Count > 0)
+            if (headers != null && headers.Count > 0)
             {
                 SetBagProperties(headers);
             }
 
             string file_not_found = "";
-            if (ObjectsExist(ref objects_to_bag, out file_not_found) == false) {
+            if (ObjectsExist(ref objects_to_bag, out file_not_found) == false)
+            {
                 ErrorMessage = "Unabled to find object" + file_not_found;
                 EventPump(ErrorMessage);
                 return null;
             }
-            
+
 
             EventPump("starting bagging process");
             EventPump("checksum algorthm used" + checksum.ToString());
@@ -479,13 +620,14 @@ namespace bagit_sharp
             {
                 System.IO.DirectoryInfo dinfo = System.IO.Directory.CreateDirectory(bag_directory);
                 bag_directory = dinfo.FullName;
-            } catch
+            }
+            catch
             {
                 bag_directory = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + bag_directory;
                 System.IO.Directory.CreateDirectory(bag_directory);
             }
-            
-            if (bag_directory.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString())==false)
+
+            if (bag_directory.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) == false)
             {
                 bag_directory += System.IO.Path.DirectorySeparatorChar.ToString();
             }
@@ -643,23 +785,25 @@ namespace bagit_sharp
                     return null;
                 }
             }
-                    
+
 
             EventPump("writing the manifest file");
             long[] vals = make_manifest(bag_directory, checksum, "utf-8", true);
 
-            
-            Payload_Oxum = vals[0].ToString() + "." + vals[1].ToString();
-            Bag_Size = vals[0];
+
+            Payload_Oxum(vals[0].ToString() + "." + vals[1].ToString());
+            EventPump("Payload-Oxum: " + Payload_Oxum());
+            Bag_Size(vals[0].ToString());
+            EventPump("Bag-Size: " + Bag_Size());
 
             EventPump("write bag-info file");
             bool bret = make_bag_info(bag_directory);
             bret = make_bag_txt(bag_directory);
 
             bret = make_tagfile(bag_directory, checksum);
-            
+
             EventPump("finished");
-            return new Bag(bag_directory) ;
+            return new Bag(bag_directory);
         }
 
         private bool ObjectsExist(ref string[] objects_to_bag, out string file_not_found)
@@ -667,12 +811,12 @@ namespace bagit_sharp
             string current_directory = System.Environment.CurrentDirectory;
             bool bResolved = false;
             file_not_found = string.Empty;
-            if (current_directory.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString())==false)
+            if (current_directory.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) == false)
             {
                 current_directory += System.IO.Path.DirectorySeparatorChar.ToString();
             }
 
-            for (int x = 0; x<objects_to_bag.Length; x++) 
+            for (int x = 0; x < objects_to_bag.Length; x++)
             {
                 bResolved = false; //reset this on each loop
                 string item = objects_to_bag[x];
@@ -685,7 +829,8 @@ namespace bagit_sharp
                         bResolved = true;
                         return true;
                     }
-                } else
+                }
+                else
                 {
                     bResolved = true;
                     return true;
@@ -703,7 +848,8 @@ namespace bagit_sharp
                             bResolved = true;
                             return true;
                         }
-                    } else
+                    }
+                    else
                     {
                         bResolved = true;
                         return true;
@@ -716,7 +862,7 @@ namespace bagit_sharp
                     //function
                     file_not_found = item;
                     return false;
-                }                
+                }
             }
 
             return false;
@@ -749,6 +895,8 @@ namespace bagit_sharp
             bool bmanifest_valid = validate_manifest_files(_bag_path);
             if (bmanifest_valid == false)
             {
+                ErrorMessage = "Validation failed";
+                return null;
                 throw new BagException(ErrorMessage);
             }
 
@@ -761,8 +909,8 @@ namespace bagit_sharp
                     vals = make_updated_manifest(_bag_path, checksum);
                 }
             }
-            Payload_Oxum = vals[0].ToString() + "." + vals[1].ToString();
-            Bag_Size = vals[0];
+            Payload_Oxum(vals[0].ToString() + "." + vals[1].ToString());
+            Bag_Size(vals[0].ToString());
 
             EventPump("write bag-info file");
             bool bret = make_bag_info(_bag_path);
@@ -784,20 +932,22 @@ namespace bagit_sharp
         #endregion
 
         #region "Validate Bag"
-        public bool Validate_Bag(string _bag_path=null, bool bFast = true)
+        public bool Validate_Bag(string _bag_path = null, bool bFast = true)
         {
             if (_bag_path == null)
             {
-                if (System.IO.Directory.Exists(this.Bag_Path)==false)
+                if (System.IO.Directory.Exists(this.Bag_Path) == false)
                 {
                     ErrorMessage = "bag path: " + Bag_Path + System.Environment.NewLine + "No Bag has been specified";
                     EventPump(ErrorMessage);
                     throw new BagException(ErrorMessage);
-                } else
+                }
+                else
                 {
                     _bag_path = this.Bag_Path;
                 }
-            } else
+            }
+            else
             {
                 this.Bag_Path = _bag_path;
                 load_bag_info(_bag_path);
@@ -817,7 +967,7 @@ namespace bagit_sharp
 
         private void validate_structure(string bag_path)
         {
-            if (System.IO.Directory.Exists(bag_path + "data")==false)
+            if (System.IO.Directory.Exists(bag_path + "data") == false)
             {
                 ErrorMessage = "Missing payload directory";
                 EventPump(ErrorMessage);
@@ -829,15 +979,15 @@ namespace bagit_sharp
                 ErrorMessage = "Missing bagit.txt file";
                 EventPump(ErrorMessage);
                 throw new BagException(ErrorMessage);
-                
+
             }
 
             bool manifest_found = false;
-            
+
 
             foreach (string f in System.IO.Directory.GetFiles(bag_path))
             {
-                if (System.IO.Path.GetFileName(f).StartsWith("manifest")==true)
+                if (System.IO.Path.GetFileName(f).StartsWith("manifest") == true)
                 {
                     manifest_found = true;
                     break;
@@ -853,7 +1003,7 @@ namespace bagit_sharp
         }
         private void validate_bagittxt(string bag_path)
         {
-           System.IO.FileStream fs = new System.IO.FileStream(bag_path + "bagit.txt", System.IO.FileMode.Open);
+            System.IO.FileStream fs = new System.IO.FileStream(bag_path + "bagit.txt", System.IO.FileMode.Open);
             byte[] bits = new byte[3];
             fs.Read(bits, 0, 3);
 
@@ -896,15 +1046,15 @@ namespace bagit_sharp
                 {
                     sline = sline.Replace("\t", " ");
                     string[] parts = new string[2];
-                    if (sline.IndexOf(" ")>-1)
+                    if (sline.IndexOf(" ") > -1)
                     {
                         parts[0] = sline.Substring(0, sline.IndexOf(" ")).Trim();
                         parts[1] = sline.Substring(sline.IndexOf(" ")).Trim();
                         if (parts[0] != CalcManifest(System.IO.Path.Combine(parent_directory, parts[1]), checksum))
                         {
-                            ErrorMessage = "tagmanifest checksum doesn't match for: " + parts[1] + System.Environment.NewLine + 
+                            ErrorMessage = "tagmanifest checksum doesn't match for: " + parts[1] + System.Environment.NewLine +
                                 "checksum: " + parts[0] + System.Environment.NewLine +
-                                "using checksum: " + checksum.ToString() + System.Environment.NewLine + 
+                                "using checksum: " + checksum.ToString() + System.Environment.NewLine +
                                 CalcManifest(System.IO.Path.Combine(parent_directory, parts[1]), checksum);
                             EventPump(ErrorMessage);
                             throw new BagException(ErrorMessage);
@@ -914,7 +1064,7 @@ namespace bagit_sharp
             }
             reader.Close();
         }
-        private bool validate_manifest_files(string bag_path)
+        private bool validate_manifest_files(string bag_path, bool bcheck_checkdigit = false)
         {
             //this just checks to see if files are duplicate 
             //this would be a problem on windows
@@ -923,14 +1073,16 @@ namespace bagit_sharp
             {
                 if (System.IO.Path.GetFileName(f).StartsWith("manifest") == true)
                 {
+                    CHECKSUM_ALGOS checksum = select_checksum(System.IO.Path.GetFileName(f));
                     string[] manifest_lines = System.IO.File.ReadAllLines(f, default_encoding);
                     foreach (string mline in manifest_lines)
                     {
                         if (mline.Trim().Length > 0)
                         {
                             string tmp_mline = mline.TrimEnd();
-                            if (tmp_mline.IndexOf("\t") > -1) { tmp_mline = tmp_mline.Replace("\t", " ");  }
+                            if (tmp_mline.IndexOf("\t") > -1) { tmp_mline = tmp_mline.Replace("\t", " "); }
                             string data_file = tmp_mline.Substring(tmp_mline.IndexOf(" ")).Trim();
+                            string hashed_signature = tmp_mline.Substring(0, tmp_mline.IndexOf(" ")).Trim();
                             if (file_list.IndexOf(data_file.ToLower()) > -1)
                             {
                                 EventPump("Potential duplicate file located.  File: " + data_file.Trim() + System.Environment.NewLine +
@@ -950,28 +1102,38 @@ namespace bagit_sharp
                                 EventPump(ErrorMessage);
                                 return false;
                             }
-                        }                        
-                    }
-                    break;
+                            
+                            if (bcheck_checkdigit == true)
+                            {
+                                if (CalcManifest(bag_path + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString()), checksum) != hashed_signature)
+                                {
+                                    ErrorMessage = "File checksum does not match the manifest.  File: " + bag_path + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString());
+                                    EventPump(ErrorMessage);
+                                    return false;
+                                } 
+                            }
+                        }
+                    }                    
                 }
             }
             return true;
         }
 
         private void validate_contents(string bag_path, bool bFast)
-        {            
+        {
             //fast just checks the oxam
             //false looks at the whole file
             if (bFast == true)
             {
                 //we are just going to check the oxam against all the data
                 //in the payload
-                if (string.IsNullOrEmpty(Payload_Oxum))
+                if (string.IsNullOrEmpty(Payload_Oxum()))
                 {
                     ErrorMessage = "no oxum defined. cannot fast validate.";
                     EventPump(ErrorMessage);
                     throw new BagException(ErrorMessage);
-                } else
+                }
+                else
                 {
                     long fcount = 0;
                     long fsize = 0;
@@ -979,10 +1141,10 @@ namespace bagit_sharp
                     {
                         fcount++;
                         fsize += new System.IO.FileInfo(f).Length;
-                        
+
                     }
 
-                    string[] parts = Payload_Oxum.Split(".".ToCharArray());
+                    string[] parts = Payload_Oxum().Split(".".ToCharArray());
                     if (parts[0] != fsize.ToString())
                     {
                         ErrorMessage = "contents do not appear to match based on the oxum evaluation";
@@ -997,13 +1159,24 @@ namespace bagit_sharp
                         throw new BagException(ErrorMessage);
                     }
                 }
+            } else
+            {
+                if (validate_manifest_files(bag_path, true) == false)
+                {
+                    ErrorMessage = "Checksums don't validate";
+                    EventPump(ErrorMessage);
+                    throw new BagException(ErrorMessage);
+                }
             }
         }
         #endregion
+
+
+        #region "utility functions"
         private bool make_bag_txt(string bag_directory)
         {
-            
-            
+
+
             System.IO.StreamWriter writer = new System.IO.StreamWriter(bag_directory + "bagit.txt", false, default_encoding);
             writer.Write("BagIt-version: " + Bag_Version + System.Environment.NewLine);
             writer.Write("Tag-File-Character-Encoding: " + default_encoding.WebName);
@@ -1013,15 +1186,58 @@ namespace bagit_sharp
         }
         private bool make_bag_info(string bag_directory)
         {
-            System.Collections.Hashtable bag_info_hash = GetBagProperties();
-            System.IO.StreamWriter writer = new System.IO.StreamWriter(bag_directory + "bag-info.txt", false, default_encoding);
-            foreach (string key in bag_info_hash.Keys)
+            //RefreshBagProperties();
+            //System.Collections.Hashtable bag_info_hash = GetBagProperties();
+            System.IO.StreamWriter writer = null;
+            if (Bag_Version == "0.96" ||
+                Bag_Version == "0.97")
             {
-                writer.Write(key + ": " + (string)bag_info_hash[key] + System.Environment.NewLine);
+                writer = new System.IO.StreamWriter(bag_directory + "bag-info.txt", false, default_encoding);
+            }
+            else
+            {
+                writer = new System.IO.StreamWriter(bag_directory + "package-info.txt", false, default_encoding);
+            }
+
+            if (baginfo_order.Count > 0)
+            {
+                //preserve order
+                foreach (string item in baginfo_order)
+                {
+                    writer.Write(item + ": " + ((Info_Object)((System.Collections.ArrayList)Bag_Info_Headers[item.ToLower()])[0]).object_value + System.Environment.NewLine);
+                    remove_from_header(item, 0);
+                }
+                foreach (string bkey in Bag_Info_Headers.Keys)
+                {
+                    System.Collections.ArrayList tlist = (System.Collections.ArrayList)Bag_Info_Headers[bkey];
+                    if (tlist.Count > 0)
+                    {
+                        foreach (Info_Object obj_i in tlist)
+                        {
+                            writer.Write(obj_i.object_label + ": " + obj_i.object_value + System.Environment.NewLine);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (string bkey in Bag_Info_Headers.Keys)
+                {
+                    System.Collections.ArrayList tlist = (System.Collections.ArrayList)Bag_Info_Headers[bkey];
+                    foreach (Info_Object obj_i in tlist)
+                    {
+                        writer.Write(obj_i.object_label + ": " + obj_i.object_value + System.Environment.NewLine);
+                    }
+                }
+                //foreach (string key in Bag_Info_Headers.Keys)
+                //{
+                //    writer.Write(key + ": " + ((System.Collections.ArrayList)Bag_Info_Headers[key.ToLower()])[0]);
+                //    //writer.Write(key + ": " + (string)bag_info_hash[key] + System.Environment.NewLine);
+                //}
             }
             writer.Close();
             return true;
-        }    
+        }
         private bool make_tagfile(string bag_directory, CHECKSUM_ALGOS checksum)
         {
             string tagmanifest_filename = "tagmanifest-" + alg(checksum) + ".txt";
@@ -1029,9 +1245,9 @@ namespace bagit_sharp
             foreach (string f in System.IO.Directory.GetFiles(bag_directory))
             {
                 EventPump("Adding to the tagmanifest: " + f);
-                if (f.IndexOf("tagmanifest")==-1)
+                if (f.IndexOf("tagmanifest") == -1)
                 {
-                    if (System.IO.Path.GetFileNameWithoutExtension(f).StartsWith("manifest") && 
+                    if (System.IO.Path.GetFileNameWithoutExtension(f).StartsWith("manifest") &&
                         System.IO.Path.GetFileName(f) != "manifest-" + alg(checksum) + ".txt")
                     {
                         continue;
@@ -1054,12 +1270,12 @@ namespace bagit_sharp
                 string[] manifest_lines = System.IO.File.ReadAllLines(dir + manifest_filename, default_encoding);
                 foreach (string single_line in manifest_lines)
                 {
-                    string tmp_line = single_line.TrimEnd();                    
+                    string tmp_line = single_line.TrimEnd();
                     if (tmp_line.IndexOf("\t") > -1) { tmp_line = tmp_line.Replace("\t", " "); }
                     string data_file = tmp_line.Substring(tmp_line.IndexOf(" ")).Trim();
-                    if (data_file.Trim().Length>0)
+                    if (data_file.Trim().Length > 0)
                     {
-                        manifest_file_list.Add(dir + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString()));                        
+                        manifest_file_list.Add(dir + data_file.TrimStart("*./".ToCharArray()).Replace("/", System.IO.Path.DirectorySeparatorChar.ToString()));
                     }
                 }
 
@@ -1068,7 +1284,7 @@ namespace bagit_sharp
                 long directorysize = 0;
                 long number_of_files = 0;
                 System.IO.StreamWriter writer = new System.IO.StreamWriter(dir + manifest_filename, true, default_encoding);
-                foreach (string f in System.IO.Directory.GetFiles(dir  + "data", "*.*", System.IO.SearchOption.AllDirectories))
+                foreach (string f in System.IO.Directory.GetFiles(dir + "data", "*.*", System.IO.SearchOption.AllDirectories))
                 {
                     System.IO.FileInfo finfo = new System.IO.FileInfo(f);
                     directorysize += finfo.Length;
@@ -1091,21 +1307,22 @@ namespace bagit_sharp
 
                 return new long[] { directorysize, number_of_files };
             }
-            catch {
+            catch
+            {
                 ErrorMessage = "manifest cannot be updated";
                 EventPump(ErrorMessage);
                 throw new BagException(ErrorMessage);
             }
         }
-        private long[] make_manifest(string dir, CHECKSUM_ALGOS checksum, string encoding, bool bappend  = false)
+        private long[] make_manifest(string dir, CHECKSUM_ALGOS checksum, string encoding, bool bappend = false)
         {
             string manifest_filename = "manifest-" + alg(checksum) + ".txt";
-            
+
 
             long directorysize = 0;
             long number_of_files = 0;
             System.IO.StreamWriter writer = new System.IO.StreamWriter(dir + manifest_filename, bappend, default_encoding);
-            foreach (string f in System.IO.Directory.GetFiles(dir +  "data", "*.*", System.IO.SearchOption.AllDirectories))
+            foreach (string f in System.IO.Directory.GetFiles(dir + "data", "*.*", System.IO.SearchOption.AllDirectories))
             {
                 System.IO.FileInfo finfo = new System.IO.FileInfo(f);
                 directorysize += finfo.Length;
@@ -1129,28 +1346,26 @@ namespace bagit_sharp
 
         private void BuildManifest(System.IO.StreamWriter writer, CHECKSUM_ALGOS checksum, string dir)
         {
-            
+
             foreach (string f in System.IO.Directory.GetFiles(dir, "*.*", System.IO.SearchOption.AllDirectories))
             {
                 string sline = CalcManifest(f, checksum) + "\t" + f.Substring(f.IndexOf("data") + 1).Replace(System.IO.Path.DirectorySeparatorChar.ToString(), "/");
                 writer.Write(sline + System.Environment.NewLine);
             }
-                
+
             //foreach (string d in System.IO.Directory.GetDirectories(dir))
             //{
             //    BuildManifest(writer, checksum, dir);
             //}
 
         }
-
-
         private string CalcManifest(string file, CHECKSUM_ALGOS checksum)
         {
 
-            if (System.IO.File.Exists(file)==false)
+            if (System.IO.File.Exists(file) == false)
             {
-                if (file.IndexOf("*")>-1) { file = file.Replace("*", ""); }
-                if (System.IO.File.Exists(file)==false) { return null; }
+                if (file.IndexOf("*") > -1) { file = file.Replace("*", ""); }
+                if (System.IO.File.Exists(file) == false) { return null; }
             }
 
             switch (checksum)
@@ -1165,7 +1380,7 @@ namespace bagit_sharp
                             }
                         }
                     }
-                    
+
                 case CHECKSUM_ALGOS.sha1:
                     {
                         using (var sh1 = System.Security.Cryptography.SHA1.Create())
@@ -1176,7 +1391,7 @@ namespace bagit_sharp
                             }
                         }
                     }
-                    
+
                 case CHECKSUM_ALGOS.sha256:
                     {
                         using (var sh256 = System.Security.Cryptography.SHA256.Create())
@@ -1187,7 +1402,7 @@ namespace bagit_sharp
                             }
                         }
                     }
-                    
+
                 case CHECKSUM_ALGOS.sha512:
                     {
                         using (var sh512 = System.Security.Cryptography.SHA512.Create())
@@ -1198,7 +1413,7 @@ namespace bagit_sharp
                             }
                         }
                     }
-                    
+
                 default:
                     {
                         using (var md5 = System.Security.Cryptography.MD5.Create())
@@ -1209,16 +1424,14 @@ namespace bagit_sharp
                             }
                         }
                     }
-                    
+
             }
-           
+
 
         }
-
-
         private bool CanRead(string dir, ref string unreadable_dirs, ref string unreadable_files)
         {
-            
+
             try
             {
                 if (IsFile(dir))
@@ -1260,7 +1473,8 @@ namespace bagit_sharp
                         }
                     }
                 }
-            } catch
+            }
+            catch
             {
                 unreadable_dirs = dir;
                 return false;
@@ -1276,19 +1490,18 @@ namespace bagit_sharp
 
             return true;
         }
-
         private bool IsFile(string dir)
         {
             if (System.IO.File.Exists(dir))
             {
                 //its a file
                 return true;
-            } else
+            }
+            else
             {
                 return false;
             }
         }
-
         private bool CopyFolder(System.IO.DirectoryInfo source, System.IO.DirectoryInfo target)
         {
             try
@@ -1297,7 +1510,8 @@ namespace bagit_sharp
                     CopyFolder(dir, target.CreateSubdirectory(dir.Name));
                 foreach (System.IO.FileInfo file in source.GetFiles())
                     file.CopyTo(System.IO.Path.Combine(target.FullName, file.Name), false);
-            } catch (System.Exception e)
+            }
+            catch (System.Exception e)
             {
                 System.Windows.Forms.MessageBox.Show(e.ToString());
                 System.Diagnostics.Debug.WriteLine(e.ToString());
@@ -1305,25 +1519,24 @@ namespace bagit_sharp
             }
             return true;
         }
-
         private string alg(CHECKSUM_ALGOS checksum)
         {
             switch (checksum)
             {
                 case CHECKSUM_ALGOS.md5:
-                    return "md5";                    
+                    return "md5";
                 case CHECKSUM_ALGOS.sha1:
-                    return "sha1";                    
+                    return "sha1";
                 case CHECKSUM_ALGOS.sha256:
                     return "sha256";
-                case CHECKSUM_ALGOS.sh384:                    
-                    return "sha384";           
+                case CHECKSUM_ALGOS.sh384:
+                    return "sha384";
                 case CHECKSUM_ALGOS.sha512:
-                    return "sh5a12";                    
+                    return "sh5a12";
                 default:
-                    return "md5";                    
+                    return "md5";
             }
-            
+
         }
         private string FormatBytes(long bytes)
         {
@@ -1337,7 +1550,6 @@ namespace bagit_sharp
 
             return String.Format("{0:0.##} {1}", dblSByte, Suffix[i]);
         }
-
         private CHECKSUM_ALGOS select_checksum(string file)
         {
             CHECKSUM_ALGOS checksum = CHECKSUM_ALGOS.md5;
@@ -1379,11 +1591,22 @@ namespace bagit_sharp
             }
             return fsize.ToString() + "." + fcount.ToString();
         }
+        #endregion
 
+
+        internal void EventPump(string message)
+        {
+            System.Diagnostics.Debug.WriteLine(message);
+            try
+            {
+                UpdateStatus(new Bag(), message);
+            }
+            catch { }
+        }
         private void ThreadPoolCallback(Object threadContext)
         {
             int threadIndex = (int)threadContext;
-            
+
         }
     }
 }
